@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=500px, initial-scale=1.0">
+    <title>Timer</title>
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Montserrat, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(138deg, #b990f1 0%, #d39df3 35%, #d9b0f3 100%);
+        }
+        #Title {
+            color: #1d2934;
+            /* background: red; */
+            font-size: 3em;
+            font-weight: bold;
+            text-shadow: 2px 2px 3px #33333331;
+            height: 60px;
+            width: 270px;
+            line-height: 60px;
+            text-align: center;
+            padding: 1px 10px 0px 10px;
+            margin: 11px 0 8px;
+            border-radius: 10px;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        #Title.editable {
+            background-color: #f8f9f8;
+            box-shadow: 2px 2px 2px 2px#999999c0;
+        }
+        #Divider {
+            height: 2px;
+            width: 260px;
+            background: #3e3e3f;
+            box-shadow: 0 0 2px 0px;
+        }
+        #Digits {
+            color: #1d2934;
+            /* background: red; */
+            font-size: 5em;
+            font-weight:bold;
+            text-shadow: 2px 2px 3px #33333331;
+            height: 140px;
+            position: relative;
+            top: 20px;
+        }
+        #Digits > div{
+            display: inline-block;
+            top: 0px;
+            position: relative;
+            text-align: center;
+            margin: 2px;
+            width: 55px;
+            border-radius: 7px;
+            transition: top 100ms cubic-bezier(.33,.43,.94,1.38);
+        }
+        #Digits.editable > div {
+            cursor: pointer;
+            background: #f8f9f8;
+            box-shadow: 2px 2px 3px 2px#9999998c;
+        }
+        #Digits > div.focused{
+            text-decoration: underline;
+            /* background: pink; */
+            top: -5px;
+        }
+        #Button {
+            cursor: pointer;
+            position: relative;
+            box-sizing: border-box;
+            font-size: 1.3em;
+            font-weight: bold;
+            border-radius: 13px;
+            text-align: center;
+            transition: top 100ms cubic-bezier(.33,.43,.94,1.38), 
+                box-shadow  100ms cubic-bezier(.33,.43,.94,1.38),
+                height 0ms 100ms,
+                width 0ms 100ms
+                ;
+        }
+        #Button.start {
+            height: 40px;
+            width: 140px;
+            padding-top: 8px;
+            top: 0px;
+            color: #273d1f;
+            background: linear-gradient(138deg, #97e37b 0%, #afe69a 100%);
+            box-shadow: 0px 8px #7cbb65, 5px 13px 20px 3px #7cbb6580, 0 8px 0 2px #2f4726, inset 0px 0 #ffffff, inset 0 0 0 0 #6d6d6d,  inset 0 0 0 0 #ffffff;
+        }
+        #Button.cancel {
+            height: 40px;
+            width: 144px;
+            padding-top: 10px;
+            top: 10px;
+            color: #725133;
+            background: linear-gradient(138deg, #ffb773 0%, #ffcb99 100%);
+            box-shadow: 0 0 #ffffff, 0 0 0 0 #ffffff, 0 0 0 0 #ffffff, inset 0px 4px #493521, inset 0 8px 8px 0 #6d6d6d36, inset 0 2px 0 2px #000000;
+        }
+
+        #Sizer {
+            position: absolute;
+            visibility: hidden;
+            font-size: 3em;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="Title"></div><span id="Sizer"></span>
+    <div id="Divider"></div>
+    <div id="Digits">
+        <div id="A">0</div><div id="B">0</div>:<div id="C">0</div><div id="D">0</div>
+    </div>
+    <div id="Button" class="start">START</div>
+    <script>
+        let l = console.log;
+        let err = console.error;
+
+        let Title = document.getElementById('Title');
+        let Digits = document.getElementById('Digits');
+        let digits = [
+            document.getElementById('A'),
+            document.getElementById('B'),
+            document.getElementById('C'),
+            document.getElementById('D')
+        ]
+        let Button = document.getElementById('Button');
+        
+        let TimerActive = false;
+
+        let focusedDigitIndex = -1;
+
+        let lastTimeDuration = '3000';
+
+        let interval;
+
+        StopTimer();
+
+        Title.addEventListener('click', e => {
+            focusTitle();
+        });
+        Title.addEventListener('keydown', e => {
+            if (e.key === 'Tab' || e.key === "ArrowDown") {
+                e.preventDefault();
+                e.stopPropagation();
+                blurTitle();
+                if (e.shiftKey) focusDigit(3);
+                else focusDigit(0);
+            }
+            SizeText(Title);
+        })
+        function focusTitle() {
+            if (!TimerActive) {
+                Title.focus();
+                document.execCommand('selectAll');
+                window.getSelection().collapseToEnd();
+                blurDigit();
+            }
+        }
+        function blurTitle() {
+            window.getSelection().collapseToEnd();
+            Title.blur();
+        }
+        function SizeText(container) {
+            setTimeout(e => {
+                let contW = window.getComputedStyle(container).width.replace('px', '') - 0; 
+
+                let Sizer = document.getElementById('Sizer');
+                Sizer.innerText = container.innerText;
+
+                let preferedfontSize = Sizer.style.fontSize;
+                let textW = window.getComputedStyle(Sizer).width.replace('px', '');
+                
+                Sizer.style.fontSize = '48px'
+                while(Number(textW) > Number(contW)) {
+                    preferedfontSize = window.getComputedStyle(Sizer).fontSize.replace('px', '') - 1 + 'px';
+                    Sizer.style.fontSize = preferedfontSize;
+                    textW = Number(window.getComputedStyle(Sizer).width.replace('px', ''));
+                }
+                container.style.fontSize = preferedfontSize;
+            }, 50);
+        }
+
+
+        digits.forEach((digit, i) => {
+            digit.addEventListener('click', e => {
+                focusDigit(i)
+                e.stopPropagation();
+            })
+        });
+        window.addEventListener('click', e => blurDigit())
+
+        function focusDigit(index) {
+            if (!TimerActive) {
+                blurDigit();
+                if (index > -1 && index < 4) {
+                    focusedDigitIndex = index;
+                    digits[index].className = 'focused';
+                }
+                else focusTitle();
+            }
+        }
+        function blurDigit() {
+            digits.forEach(digit => digit.className = '');
+            focusedDigitIndex = -2;
+        }
+
+        window.addEventListener('keydown', e => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                if (e.shiftKey) focusDigit(focusedDigitIndex - 1);
+                else focusDigit(focusedDigitIndex + 1);
+            }
+            else if (e.key === 'ArrowLeft' || e.key === 'Backspace' && focusedDigitIndex > -1) focusDigit(focusedDigitIndex - 1);
+            else if (e.key === 'ArrowRight' && focusedDigitIndex > -1) focusDigit(focusedDigitIndex + 1);
+            else if (e.key === 'ArrowUp' && focusedDigitIndex > -1) focusTitle(); 
+            else if (e.key === 'Enter') {
+                StartTimer();
+            }
+            else if (e.key === 'Escape') {
+                StopTimer();
+            } 
+            else if (focusedDigitIndex === 0 && e.key === '6' && digits[1].innerText === '0') {
+                digits[focusedDigitIndex].innerText = '6'; focusDigit(focusedDigitIndex + 1);
+            }
+            else if (focusedDigitIndex === 2 || focusedDigitIndex === 0) {
+                switch (e.key) {
+                    case '1': digits[focusedDigitIndex].innerText = '1'; focusDigit(focusedDigitIndex + 1); break;
+                    case '2': digits[focusedDigitIndex].innerText = '2'; focusDigit(focusedDigitIndex + 1); break;
+                    case '3': digits[focusedDigitIndex].innerText = '3'; focusDigit(focusedDigitIndex + 1); break;
+                    case '4': digits[focusedDigitIndex].innerText = '4'; focusDigit(focusedDigitIndex + 1); break;
+                    case '5': digits[focusedDigitIndex].innerText = '5'; focusDigit(focusedDigitIndex + 1); break;
+                    case '0': digits[focusedDigitIndex].innerText = '0'; focusDigit(focusedDigitIndex + 1); break;
+                }
+            }
+            else if (focusedDigitIndex === 1 && digits[0].innerText !== '6' || focusedDigitIndex === 3) {
+                switch (e.key) {
+                    case '1': digits[focusedDigitIndex].innerText = '1'; if (focusedDigitIndex === 3) blurDigit(); else focusDigit(focusedDigitIndex + 1); break;
+                    case '2': digits[focusedDigitIndex].innerText = '2'; if (focusedDigitIndex === 3) blurDigit(); else focusDigit(focusedDigitIndex + 1); break;
+                    case '3': digits[focusedDigitIndex].innerText = '3'; if (focusedDigitIndex === 3) blurDigit(); else focusDigit(focusedDigitIndex + 1); break;
+                    case '4': digits[focusedDigitIndex].innerText = '4'; if (focusedDigitIndex === 3) blurDigit(); else focusDigit(focusedDigitIndex + 1); break;
+                    case '5': digits[focusedDigitIndex].innerText = '5'; if (focusedDigitIndex === 3) blurDigit(); else focusDigit(focusedDigitIndex + 1); break;
+                    case '6': digits[focusedDigitIndex].innerText = '6'; if (focusedDigitIndex === 3) blurDigit(); else focusDigit(focusedDigitIndex + 1); break;
+                    case '7': digits[focusedDigitIndex].innerText = '7'; if (focusedDigitIndex === 3) blurDigit(); else focusDigit(focusedDigitIndex + 1); break;
+                    case '8': digits[focusedDigitIndex].innerText = '8'; if (focusedDigitIndex === 3) blurDigit(); else focusDigit(focusedDigitIndex + 1); break;
+                    case '9': digits[focusedDigitIndex].innerText = '9'; if (focusedDigitIndex === 3) blurDigit(); else focusDigit(focusedDigitIndex + 1); break;
+                    case '0': digits[focusedDigitIndex].innerText = '0'; if (focusedDigitIndex === 3) blurDigit(); else focusDigit(focusedDigitIndex + 1); break;
+                }
+            }
+            else if (focusedDigitIndex === 1 && e.key === '0') {
+                digits[focusedDigitIndex].innerText = '0';
+                focusDigit(focusedDigitIndex + 1);
+            }
+            
+        })
+
+        Button.addEventListener('click', e => {
+            if (e.target.className === 'start') StartTimer();
+            else StopTimer();
+        })
+
+
+        function StartTimer(title, duration) {
+            if (!TimerActive) {
+                if (title) Title.innerText = title;
+                // if (duration) Digits.innerText = duration; FIx this
+
+                blurTitle(); blurDigit();
+
+                TimerActive = true;
+
+                Button.innerText = 'Cancel';
+                Button.className = 'cancel';
+
+                Title.className = Digits.className = '';
+                Title.contentEditable = false;
+
+                lastTimeDuration = digits[0].innerText + digits[1].innerText + digits[2].innerText + digits[3].innerText;
+                Countdown();
+            }
+        }
+        function StopTimer() {
+            clearInterval(interval);
+
+            TimerActive = false;
+
+            digits.forEach((digit, i) => {
+                digit.innerText = lastTimeDuration[i];
+            })
+
+            Button.innerText = 'Start';
+            Button.className = 'start';
+
+            Title.className = Digits.className = 'editable';
+            Title.contentEditable = true;
+
+            focusTitle();
+        }
+
+
+        function Countdown() {
+            interval = setInterval(() => {
+                if (digits[3].innerText === '0') {
+                    if (digits[2].innerText === '0') {
+                        if (digits[1].innerText === '0') {
+                            if (digits[0].innerText === '0') {
+                                //Do something Indicating done
+                                StopTimer();
+                                return;
+                            } else { digits[1].innerText = '9'; digits[2].innerText = '5'; digits[3].innerText = '9'; digits[0].innerText--; }
+                        } else { digits[2].innerText = '5'; digits[3].innerText = '9'; digits[1].innerText--; }
+                    } else { digits[3].innerText = '9'; digits[2].innerText--; }
+                } else digits[3].innerText--;
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
